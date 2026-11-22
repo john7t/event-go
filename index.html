@@ -28,34 +28,42 @@
 <script src="assets/main.js"></script>
 <script>
 const selected = new Map(); // id -> activity
+const MAX_ITEMS = (typeof CONFIG !== "undefined" && CONFIG.MAX_SHARE_ITEMS) || 5;
+
+// 防止 Google Sheet 內容含有 HTML 字元而破版或被注入
+function esc(v){
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
 
 function statusHtml(a){
   return a.isFull
-    ? `<span class="status full">候補中 ${a.joined}/${a.capacity}</span>`
-    : `<span class="status open">尚可報名 ${a.joined}/${a.capacity}</span>`;
+    ? `<span class="status full">候補中 ${esc(a.joined)}/${esc(a.capacity)}</span>`
+    : `<span class="status open">尚可報名 ${esc(a.joined)}/${esc(a.capacity)}</span>`;
 }
 
 function cardHtml(a){
   return `
-  <div class="ticket" data-id="${a.id}">
+  <div class="ticket" data-id="${esc(a.id)}">
     ${a.isFull ? `<div class="stamp">已額滿・候補中</div>` : ""}
-    ${a.cover ? `<img class="cover" src="${a.cover}" alt="${a.title}">` : ""}
+    ${a.cover ? `<img class="cover" src="${esc(a.cover)}" alt="${esc(a.title)}" loading="lazy">` : ""}
     <div class="main">
-      <p class="title">${a.title}</p>
-      <p class="meta">${a.area}｜${a.date}</p>
-      ${a.price ? `<p class="price">NT$ ${a.price}</p>` : ""}
+      <p class="title">${esc(a.title)}</p>
+      <p class="meta">${esc(a.area)}｜${esc(a.date)}</p>
+      ${a.price ? `<p class="price">NT$ ${esc(a.price)}</p>` : ""}
     </div>
     <div class="perforation"></div>
     <div class="stub">
       ${statusHtml(a)}
-      <span>#${a.id}</span>
+      <span>#${esc(a.id)}</span>
     </div>
     <div class="select-row">
-      <label><input type="checkbox" class="pick" data-id="${a.id}"> 加入分享清單</label>
+      <label><input type="checkbox" class="pick" data-id="${esc(a.id)}"> 加入分享清單</label>
     </div>
     <div class="actions">
       <a class="btn btn-ghost" href="detail.html?id=${encodeURIComponent(a.id)}">活動詳情</a>
-      <button class="btn btn-primary shareOneBtn" data-id="${a.id}">分享</button>
+      <button class="btn btn-primary shareOneBtn" data-id="${esc(a.id)}">分享</button>
     </div>
   </div>`;
 }
@@ -66,48 +74,53 @@ function updateShareBar(){
 }
 
 async function main(){
+  document.getElementById("selMax").textContent = MAX_ITEMS;
   await ensureLiff().catch(()=>{});
+
+  const grid = document.getElementById("grid");
   let activities = [];
   try{
     activities = await fetchActivities();
   }catch(e){
-    document.getElementById("grid").innerHTML = `<div class="empty">活動資料讀取失敗，請確認 Google Sheet 設定。</div>`;
+    grid.innerHTML = `<div class="empty">活動資料讀取失敗，請確認 Google Sheet 設定。</div>`;
     console.error(e);
     return;
   }
-  const grid = document.getElementById("grid");
   if(!activities.length){
     grid.innerHTML = `<div class="empty">目前尚無活動</div>`;
     return;
   }
   grid.innerHTML = activities.map(cardHtml).join("");
 
+  const findById = id => activities.find(x => String(x.id) === id);
+
   grid.querySelectorAll(".shareOneBtn").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      const a = activities.find(x=>x.id===btn.dataset.id);
-      shareOne(a);
+      const a = findById(btn.dataset.id);
+      if(a) shareOne(a);
     });
   });
 
   grid.querySelectorAll(".pick").forEach(cb=>{
     cb.addEventListener("change", ()=>{
-      const a = activities.find(x=>x.id===cb.dataset.id);
+      const a = findById(cb.dataset.id);
+      if(!a) return;
       if(cb.checked){
-        if(selected.size >= CONFIG.MAX_SHARE_ITEMS){
+        if(selected.size >= MAX_ITEMS){
           cb.checked = false;
-          alert(`一次最多只能分享 ${CONFIG.MAX_SHARE_ITEMS} 個活動（LINE shareTargetPicker 限制）`);
+          alert(`一次最多只能分享 ${MAX_ITEMS} 個活動（LINE shareTargetPicker 限制）`);
           return;
         }
-        selected.set(a.id, a);
+        selected.set(String(a.id), a);
       }else{
-        selected.delete(a.id);
+        selected.delete(String(a.id));
       }
       updateShareBar();
     });
   });
 
   document.getElementById("shareSelectedBtn").addEventListener("click", ()=>{
-    shareMany(Array.from(selected.values()));
+    if(selected.size) shareMany(Array.from(selected.values()));
   });
 }
 
