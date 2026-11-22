@@ -3,108 +3,114 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動詳情</title>
+<title>旅行揪團・活動詳情</title>
 <link rel="stylesheet" href="assets/style.css">
+<style>
+  /* 詳情頁專用的少量補充樣式，其餘沿用 style.css */
+  .detail-wrap{max-width:640px;margin:0 auto;padding:16px;}
+  .detail-wrap .ticket{margin-bottom:16px;}
+  .detail-wrap .cover{width:100%;height:auto;display:block;}
+  .info-list{list-style:none;margin:12px 0 0;padding:0;}
+  .info-list li{display:flex;gap:12px;padding:8px 0;border-bottom:1px dashed rgba(0,0,0,.12);}
+  .info-list li b{min-width:4.5em;font-weight:600;}
+  .desc{white-space:pre-wrap;line-height:1.7;margin-top:12px;}
+  .back{display:inline-block;margin:12px 16px 0;}
+</style>
 </head>
 <body>
 
 <div class="topbar">
   <div>
-    <span class="eyebrow">Itinerary</span>
-    <h1 id="pageTitle">活動詳情</h1>
+    <span class="eyebrow">Boarding Pass</span>
+    <h1>活動詳情</h1>
   </div>
 </div>
 
-<div class="detail-wrap" id="content">
-  <div class="loading">載入中…</div>
+<a class="btn btn-ghost back" href="index.html">← 回活動列表</a>
+
+<div id="detail" class="detail-wrap">
+  <div class="loading">載入活動中…</div>
 </div>
 
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="assets/main.js"></script>
 <script>
-function videoBlock(a){
-  if(a.youtubeId){
-    return `
-    <span class="section-label">活動簡介</span>
-    <div class="video-wrap">
-      <iframe src="https://www.youtube.com/embed/${a.youtubeId}" allowfullscreen loading="lazy"></iframe>
-    </div>`;
-  }
-  if(a.igUrl){
-    return `
-    <span class="section-label">推薦影片</span>
-    <a class="btn btn-ghost btn-block" href="${a.igUrl}" target="_blank" rel="noopener">在 Instagram 上觀看 →</a>`;
-  }
-  return "";
+function esc(v){
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
 }
 
-function joinBlock(a){
-  if(!a.isFull){
-    return `
-    <p class="join-note">目前已報名 ${a.joined} / ${a.capacity} 人，尚有名額。</p>
-    ${a.groupUrl ? `<a class="btn btn-teal btn-block" href="${a.groupUrl}" target="_blank" rel="noopener">加入揪團群組</a>`
-                 : `<p class="join-note">主辦人尚未提供群組連結。</p>`}`;
-  }
+function statusHtml(a){
+  return a.isFull
+    ? `<span class="status full">候補中 ${esc(a.joined)}/${esc(a.capacity)}</span>`
+    : `<span class="status open">尚可報名 ${esc(a.joined)}/${esc(a.capacity)}</span>`;
+}
+
+function row(label, value){
+  return value ? `<li><b>${label}</b><span>${esc(value)}</span></li>` : "";
+}
+
+function detailHtml(a){
+  const desc = a.description || a.desc || a.content || "";
+  const remain = (Number(a.capacity) || 0) - (Number(a.joined) || 0);
   return `
-    <p class="join-note">此活動人數已滿（${a.joined}/${a.capacity}），可加入候補名單排隊，遞補時將由主辦人通知。</p>
-    ${a.waitlistUrl ? `<a class="btn btn-stamp btn-block" href="${a.waitlistUrl}" target="_blank" rel="noopener">加入候補名單</a>`
-                    : `<p class="join-note">主辦人尚未提供候補連結，請透過下方 LINE 聯繫。</p>`}`;
-}
-
-function render(a){
-  document.getElementById("pageTitle").textContent = a.title;
-  document.title = a.title;
-  document.getElementById("content").innerHTML = `
-    ${a.cover ? `<img class="hero-img" src="${a.cover}" alt="${a.title}">` : ""}
-    <p class="detail-title">${a.title}</p>
-    <p class="detail-meta">${a.area}｜${a.date}${a.price ? `｜NT$ ${a.price}` : ""}</p>
-
-    <span class="section-label">活動行程</span>
-    <ul class="itinerary-list">
-      ${a.itinerary.length ? a.itinerary.map(step=>`<li>${step}</li>`).join("") : "<li>行程資訊準備中</li>"}
-    </ul>
-
-    ${videoBlock(a)}
-
-    <div class="footer-card">
-      <div class="organizer-row">
-        <div class="organizer-avatar"></div>
-        <div>
-          <strong>${a.organizerName}</strong><br>
-          <span style="font-size:0.8rem;color:#777;">活動主辦人</span>
-        </div>
-      </div>
-      ${a.organizerLineUrl ? `<a class="btn btn-ghost btn-block" href="${a.organizerLineUrl}" target="_blank" rel="noopener">加主辦人 LINE 好友</a>` : ""}
-      <div style="margin-top:16px;">
-        ${joinBlock(a)}
-      </div>
+  <div class="ticket" data-id="${esc(a.id)}">
+    ${a.isFull ? `<div class="stamp">已額滿・候補中</div>` : ""}
+    ${a.cover ? `<img class="cover" src="${esc(a.cover)}" alt="${esc(a.title)}">` : ""}
+    <div class="main">
+      <p class="title">${esc(a.title)}</p>
+      <p class="meta">${esc(a.area)}｜${esc(a.date)}</p>
+      ${a.price ? `<p class="price">NT$ ${esc(a.price)}</p>` : ""}
+      <ul class="info-list">
+        ${row("地區", a.area)}
+        ${row("日期", a.date)}
+        ${row("費用", a.price ? "NT$ " + a.price : "")}
+        ${row("人數", `${a.joined ?? 0} / ${a.capacity ?? "-"}`)}
+        ${row("剩餘名額", a.isFull ? "已額滿（可候補）" : (remain > 0 ? remain + " 位" : ""))}
+      </ul>
+      ${desc ? `<p class="desc">${esc(desc)}</p>` : ""}
     </div>
-
-    <div class="actions" style="padding:20px 0 0;">
-      <button class="btn btn-primary" id="shareBtn">分享這個行程</button>
+    <div class="perforation"></div>
+    <div class="stub">
+      ${statusHtml(a)}
+      <span>#${esc(a.id)}</span>
     </div>
-  `;
-  document.getElementById("shareBtn").addEventListener("click", ()=> shareOne(a));
+    <div class="actions">
+      <a class="btn btn-ghost" href="index.html">回列表</a>
+      <button class="btn btn-primary" id="shareBtn">分享給好友</button>
+    </div>
+  </div>`;
 }
 
 async function main(){
-  await ensureLiff().catch(()=>{});
+  const box = document.getElementById("detail");
   const id = new URLSearchParams(location.search).get("id");
   if(!id){
-    document.getElementById("content").innerHTML = `<div class="empty">缺少活動 id</div>`;
+    box.innerHTML = `<div class="empty">缺少活動編號，請從活動列表進入。</div>`;
     return;
   }
+
+  await ensureLiff().catch(()=>{});
+
+  let activities = [];
   try{
-    const a = await getActivityById(id);
-    if(!a){
-      document.getElementById("content").innerHTML = `<div class="empty">找不到這個活動</div>`;
-      return;
-    }
-    render(a);
+    activities = await fetchActivities();
   }catch(e){
+    box.innerHTML = `<div class="empty">活動資料讀取失敗，請確認 Google Sheet 設定。</div>`;
     console.error(e);
-    document.getElementById("content").innerHTML = `<div class="empty">活動資料讀取失敗</div>`;
+    return;
   }
+
+  const a = activities.find(x => String(x.id) === id);
+  if(!a){
+    box.innerHTML = `<div class="empty">找不到這個活動（#${esc(id)}），可能已下架。</div>`;
+    return;
+  }
+
+  document.title = `${a.title}｜旅行揪團`;
+  box.innerHTML = detailHtml(a);
+  document.getElementById("shareBtn").addEventListener("click", ()=> shareOne(a));
 }
 
 main();
